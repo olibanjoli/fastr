@@ -46,7 +46,9 @@ start, `--no-metrics` to skip the daily metrics.
 | `fastr auth` | log in to Garmin once; tokens go to `data/garmin_tokens/` |
 | `fastr sync` | activities, laps, daily metrics, snapshots, scheduled workouts |
 | `fastr runna [--url ...] [--file plan.ics] [--show 20]` | import the Runna plan |
-| `fastr report [--weeks 26] [--plan-weeks 25] [--print]` | build the markdown and JSON report |
+| `fastr report [--weeks 26] [--plan-weeks 25] [--plan-source runna_ical\|claude_plan] [--print]` | build the markdown and JSON report |
+| `fastr decoupling [--weeks 8] [--min-minutes 45]` | pace-to-heart-rate drift per steady run: was the easy run actually easy? |
+| `fastr plan import plans/my-plan.csv` | load a hand-written CSV plan (see `plans/README.md`) as a plan source |
 | `fastr status` | what is in the store, last syncs, goals |
 | `fastr inspect snapshot|range|activity|laps|planned|daily [key]` | look at raw shapes to refine extractors |
 | `fastr export` | CSVs of activities, laps, daily metrics, weekly totals and plan |
@@ -59,6 +61,9 @@ start, `--no-metrics` to skip the daily metrics.
 - **Fitness markers**: VO2max trend, LT, training status and acute:chronic load,
   resting HR and HRV, readiness, sleep, endurance and hill scores, predictions.
 - **Best efforts (12 weeks)**: fastest contiguous-lap windows for 1 km to marathon.
+- **Aerobic decoupling**: for every steady run of 45 minutes or more, pace-to-heart-rate
+  in the first half against the second half (Friel's Pa:HR). Drift under 5 percent means
+  the run was genuinely easy; over 8 percent means it was faster than easy.
 - **Weekly history**: runs, km, time, long run, pace, HR, elevation, load, share
   of time in HR zones 1-2, cross-training, km by session type.
 - **Plan adherence**: planned vs completed runs per week, missed sessions.

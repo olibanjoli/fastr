@@ -243,6 +243,43 @@ def report(
 
 
 @app.command()
+def decoupling(
+    weeks: int = typer.Option(8, "--weeks", help="How many weeks back to look"),
+    min_minutes: int = typer.Option(45, "--min-minutes", help="Shortest run to include"),
+    max_cv: float = typer.Option(0.12, "--max-cv", help="Skip runs whose lap paces vary more than this (structured sessions)"),
+) -> None:
+    """Pace-to-heart-rate drift per steady run: was the easy run actually easy?"""
+    from .analysis import decoupling_report
+
+    store = open_store()
+    rows = decoupling_report(
+        store.activities(since=date.today() - timedelta(weeks=weeks)),
+        store.laps,
+        since=date.today() - timedelta(weeks=weeks),
+        min_minutes=min_minutes,
+        max_cv=max_cv,
+    )
+    store.close()
+    if not rows:
+        console.print("No steady runs with lap heart-rate data in that window. Run `fastr sync` first.")
+        return
+    t = Table(title=f"Aerobic decoupling, last {weeks} weeks")
+    for col, just in (("date", "left"), ("run", "left"), ("km", "right"), ("time", "right"),
+                      ("first half", "right"), ("second half", "right"), ("drift", "right"), ("verdict", "left")):
+        t.add_column(col, justify=just)
+    for d in rows:
+        colour = {"easy": "green", "borderline": "yellow", "too fast": "red"}[d.verdict]
+        t.add_row(
+            d.date, d.name[:40], f"{d.km:.1f}", fmt_hms(d.duration_s),
+            f"{fmt_pace(d.pace1)} @ {d.hr1:.0f}", f"{fmt_pace(d.pace2)} @ {d.hr2:.0f}",
+            f"{d.pct:+.1f}%", f"[{colour}]{d.verdict}[/{colour}]",
+        )
+    console.print(t)
+    vals = sorted(d.pct for d in rows)
+    console.print(f"Median drift {vals[len(vals) // 2]:+.1f}% over {len(rows)} runs. Under 5% = easy, 5 to 8% = borderline, over 8% = faster than easy.")
+
+
+@app.command()
 def status() -> None:
     """Show what is in the local store and the configured goals."""
     cfg = load_config()

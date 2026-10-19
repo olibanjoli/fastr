@@ -392,6 +392,125 @@ def best_efforts_from_laps(
     return best
 
 
+# -- aerobic decoupling --------------------------------------------------------
+
+@dataclass
+class Decoupling:
+    """Pace-to-heart-rate drift between the first and second half of a steady run."""
+
+    activity_id: int
+    date: str
+    name: str
+    km: float
+    duration_s: float
+    pace1: float
+    hr1: float
+    pace2: float
+    hr2: float
+    pct: float
+
+    @property
+    def verdict(self) -> str:
+        if self.pct <= 5:
+            return "easy"
+        if self.pct <= 8:
+            return "borderline"
+        return "too fast"
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["verdict"] = self.verdict
+        return d
+
+
+def decoupling_from_laps(laps: Sequence[Row]) -> tuple[float, float, float, float, float] | None:
+    """Return (pace1, hr1, pace2, hr2, pct) or None when the laps cannot support it.
+
+    Halves are split by distance. pct = (EF1 - EF2) / EF1 * 100 where EF is speed
+    divided by heart rate (Friel's Pa:HR decoupling). Positive means the heart rate
+    drifted up relative to pace; under 5 percent is the usual mark of a truly easy run.
+    """
+    valid = [l for l in laps if (l["distance_m"] or 0) > 0 and (l["duration_s"] or 0) > 0 and (l["avg_hr"] or 0) > 0]
+    if len(valid) < 4:
+        return None
+    total = sum(float(l["distance_m"]) for l in valid)
+    first: list[Row] = []
+    second: list[Row] = []
+    acc = 0.0
+    for l in valid:
+        (first if acc < total / 2 else second).append(l)
+        acc += float(l["distance_m"])
+    if not first or not second:
+        return None
+
+    def agg(ls: Sequence[Row]) -> tuple[float, float, float]:
+        d = sum(float(l["distance_m"]) for l in ls)
+        t = sum(float(l["duration_s"]) for l in ls)
+        hr = sum(float(l["avg_hr"]) * float(l["duration_s"]) for l in ls) / t
+        return t / (d / 1000.0), hr, d / t
+
+    p1, h1, v1 = agg(first)
+    p2, h2, v2 = agg(second)
+    ef1, ef2 = v1 / h1, v2 / h2
+    return p1, h1, p2, h2, (ef1 - ef2) / ef1 * 100.0
+
+
+def lap_pace_cv(laps: Sequence[Row]) -> float | None:
+    """Coefficient of variation of lap pace; high values mean a structured session."""
+    paces = [
+        float(l["duration_s"]) / (float(l["distance_m"]) / 1000.0)
+        for l in laps
+        if (l["distance_m"] or 0) >= 300 and (l["duration_s"] or 0) > 0
+    ]
+    if len(paces) < 3:
+        return None
+    mean = sum(paces) / len(paces)
+    var = sum((p - mean) ** 2 for p in paces) / len(paces)
+    return (var ** 0.5) / mean if mean else None
+
+
+def decoupling_report(
+    activities: Sequence[Row],
+    laps_for: Any,
+    since: date,
+    min_minutes: int = 45,
+    max_cv: float = 0.12,
+) -> list[Decoupling]:
+    """Decoupling for steady runs (easy, long, unlabelled) of at least ``min_minutes``."""
+    out: list[Decoupling] = []
+    for a in activities:
+        if not a["is_run"] or date.fromisoformat(a["date"]) < since:
+            continue
+        if (a["duration_s"] or 0) < min_minutes * 60:
+            continue
+        label = classify_run_name(a["name"])
+        if label in ("intervals", "tempo", "race"):
+            continue
+        laps = laps_for(a["activity_id"])
+        cv = lap_pace_cv(laps)
+        if cv is not None and cv > max_cv:
+            continue  # structured session hiding behind a generic name
+        res = decoupling_from_laps(laps)
+        if res is None:
+            continue
+        p1, h1, p2, h2, pct = res
+        out.append(
+            Decoupling(
+                activity_id=int(a["activity_id"]),
+                date=a["date"],
+                name=a["name"] or "",
+                km=float(a["distance_m"] or 0) / 1000.0,
+                duration_s=float(a["duration_s"] or 0),
+                pace1=p1,
+                hr1=h1,
+                pace2=p2,
+                hr2=h2,
+                pct=pct,
+            )
+        )
+    return out
+
+
 # -- fitness markers -----------------------------------------------------------
 
 def _latest(rows: Sequence[Row], col: str, before: date | None = None) -> tuple[str, Any] | None:

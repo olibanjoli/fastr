@@ -291,6 +291,28 @@ def build_report(
         md.append("No lap data yet (run `fastr sync`).")
     md.append("")
 
+    # aerobic decoupling
+    decoup = an.decoupling_report(activities, store.laps, since=today - timedelta(weeks=8))
+    md.append("## Aerobic decoupling (steady runs of 45 min or more, last 8 weeks)")
+    md.append("")
+    if decoup:
+        rows = [
+            [d.date, d.name[:40], f"{d.km:.1f}", _hm(d.duration_s),
+             f"{fmt_pace(d.pace1)} @ {d.hr1:.0f}", f"{fmt_pace(d.pace2)} @ {d.hr2:.0f}", f"{d.pct:+.1f}%", d.verdict]
+            for d in decoup
+        ]
+        md.append(_table(["Date", "Run", "km", "Time", "First half", "Second half", "Drift", "Verdict"], rows))
+        vals = sorted(d.pct for d in decoup)
+        median = vals[len(vals) // 2]
+        md.append("")
+        md.append(
+            f"Median drift {median:+.1f}% over {len(decoup)} runs. Under 5% the pace was genuinely easy; "
+            "over 8% the heart rate climbed away from the pace, so the run was faster than easy whatever it felt like."
+        )
+    else:
+        md.append("No steady runs of 45 minutes or more with lap heart-rate data in the window.")
+    md.append("")
+
     # weekly history
     md.append(f"## Weekly history (last {weeks} weeks, Monday-start)")
     md.append("")
@@ -413,6 +435,7 @@ def build_report(
         "flags": red_flags,
         "loads": loads,
         "runna_plan": runna_plan,
+        "decoupling": [d.to_dict() for d in decoup],
     }
     for p in data["upcoming"]:
         p.pop("raw", None)
