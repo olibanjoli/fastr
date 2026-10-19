@@ -23,7 +23,7 @@ END:VEVENT
 BEGIN:VEVENT
 UID:UPCOMING_PLAN_WORKOUT-abc_plan_week_1_FULL_BODY_0
 DTSTART:20260107
-DTEND:20261022
+DTEND:20260108
 SUMMARY:🏋️ Going Heavy • 40m - 50m
 DESCRIPTION:Full Body • 40m - 50m\\n\\n3 sets of:\\n• Toe Walks\\n• Walking Lunge\\n\\n📲 View in the Runna app: https://club.runna.com/x
 X-WORKOUT-ESTIMATED-DURATION:3000
