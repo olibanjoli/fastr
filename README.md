@@ -79,8 +79,11 @@ src/fastr/
   analysis.py   weekly summaries, adherence, VDOT/Riegel, goal assessment, flags
   report.py     markdown + JSON report
 tests/          synthetic end-to-end test (no network)
+plans/          CSV training plans (see plans/README.md); your own plans are git-ignored
 data/           local only: tokens, fastr.db, raw/, reports/, exports/
 ```
+
+Private data (`data/`, `fastr.toml`, your plans) is git-ignored so the repo can be public.
 
 ## Notes
 
