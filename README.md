@@ -85,6 +85,10 @@ data/           local only: tokens, fastr.db, raw/, reports/, exports/
 
 Private data (`data/`, `fastr.toml`, your plans) is git-ignored so the repo can be public.
 
+## License
+
+MIT, see `LICENSE`.
+
 ## Notes
 
 - The Garmin library is unofficial; if Garmin changes an endpoint, `fastr inspect`
