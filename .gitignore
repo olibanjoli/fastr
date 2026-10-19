@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# fastr private data: tokens, database, raw API dumps, reports, personal config and plans
+data/
+fastr.toml
+plans/*
+!plans/README.md
+!plans/example-plan.csv

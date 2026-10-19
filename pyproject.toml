@@ -1,0 +1,29 @@
+[project]
+name = "fastr"
+version = "0.1.0"
+description = "Pull Garmin history and the Runna plan into one local store, then analyse training against race goals."
+readme = "README.md"
+authors = [
+    { name = "olibanjoli" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "garminconnect>=0.3.19",
+    "icalendar>=6.0",
+    "requests>=2.32",
+    "rich>=15.0.0",
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+fastr = "fastr.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
