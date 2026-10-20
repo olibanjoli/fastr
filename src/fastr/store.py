@@ -141,6 +141,15 @@ CREATE TABLE IF NOT EXISTS sync_log (
     kind  TEXT NOT NULL,
     info  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS pushed_workouts (
+    uid          TEXT PRIMARY KEY,
+    date         TEXT NOT NULL,
+    workout_id   INTEGER,
+    schedule_id  INTEGER,
+    name         TEXT,
+    pushed_at    TEXT NOT NULL
+);
 """
 
 DAILY_COLUMNS = {
@@ -373,6 +382,30 @@ class Store:
         target.mkdir(parents=True, exist_ok=True)
         safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in str(key))
         (target / f"{safe}.json").write_text(_json(payload), encoding="utf-8")
+
+    # -- pushed workouts ------------------------------------------------------
+    def record_push(self, uid: str, day: str, workout_id: int | None, schedule_id: int | None, name: str) -> None:
+        self.conn.execute(
+            "INSERT OR REPLACE INTO pushed_workouts (uid, date, workout_id, schedule_id, name, pushed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (uid, day, workout_id, schedule_id, name, _now()),
+        )
+        self.conn.commit()
+
+    def pushed(self, since: str | None = None, until: str | None = None) -> list[sqlite3.Row]:
+        sql = "SELECT * FROM pushed_workouts WHERE 1=1"
+        args: list[Any] = []
+        if since:
+            sql += " AND date >= ?"
+            args.append(since)
+        if until:
+            sql += " AND date <= ?"
+            args.append(until)
+        return list(self.conn.execute(sql + " ORDER BY date", args))
+
+    def forget_push(self, uid: str) -> None:
+        self.conn.execute("DELETE FROM pushed_workouts WHERE uid=?", (uid,))
+        self.conn.commit()
 
     def log_sync(self, kind: str, info: str = "") -> None:
         self.conn.execute(

@@ -139,7 +139,7 @@ def build_report(
     best = an.best_efforts_from_laps(activities, store.laps, since=today - timedelta(weeks=12))
 
     loads = an.load_ratio(activities, today)
-    plan_source = plan_source or _pick_plan_source(store)
+    plan_source = plan_source or cfg.plan_source or _pick_plan_source(store)
     planned_all = store.planned(source=plan_source) if plan_source else []
     plan = an.plan_weeks(planned_all, plan_weeks, today)
     adher = an.adherence(planned_all, activities, weeks=8, today=today)

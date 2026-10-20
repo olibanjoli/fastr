@@ -49,9 +49,22 @@ start, `--no-metrics` to skip the daily metrics.
 | `fastr report [--weeks 26] [--plan-weeks 25] [--plan-source runna_ical\|claude_plan] [--print]` | build the markdown and JSON report |
 | `fastr decoupling [--weeks 8] [--min-minutes 45]` | pace-to-heart-rate drift per steady run: was the easy run actually easy? |
 | `fastr plan import plans/my-plan.csv` | load a hand-written CSV plan (see `plans/README.md`) as a plan source |
+| `fastr plan push [--weeks 3] [--dry-run] [--replace]` | schedule the plan's runs in Garmin Connect as structured workouts (heart-rate caps and pace zones from `[paces]` in fastr.toml), so the watch guides each session |
+| `fastr plan unpush [--from DATE] [--to DATE]` | remove workouts fastr scheduled |
 | `fastr status` | what is in the store, last syncs, goals |
 | `fastr inspect snapshot|range|activity|laps|planned|daily [key]` | look at raw shapes to refine extractors |
 | `fastr export` | CSVs of activities, laps, daily metrics, weekly totals and plan |
+
+## Pushing a plan to the watch
+
+`fastr plan push` builds one Garmin workout per run session of a CSV plan: easy runs
+become a distance step with a heart-rate ceiling, threshold and interval sessions get a
+warm-up, a repeat group with pace targets and a cool-down, long runs get a lower
+heart-rate ceiling after 10 km and pace targets for any marathon- or half-pace blocks.
+Each workout is scheduled on its date, and Garmin Connect sends it to the watch at the
+next sync. Run with `--dry-run` first to see the exact steps. After a race changes your
+zones, edit `[paces]` and run `fastr plan push --replace`. The push covers three weeks
+by default, so re-run it weekly.
 
 ## What the report contains
 

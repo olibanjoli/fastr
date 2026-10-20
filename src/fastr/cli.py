@@ -201,6 +201,74 @@ def plan_import(
     store.close()
 
 
+@plan_app.command("push")
+def plan_push(
+    weeks: int = typer.Option(3, "--weeks", help="How many weeks ahead to push"),
+    start: str = typer.Option(None, "--from", help="First date YYYY-MM-DD (default today)"),
+    source: str = typer.Option("claude_plan", "--source"),
+    replace: bool = typer.Option(False, "--replace", help="Re-create workouts already pushed (after a pace change)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the workouts without sending anything"),
+    send: bool = typer.Option(True, "--send/--no-send", help="Ask Garmin to sync scheduled workouts to the watch"),
+) -> None:
+    """Schedule the plan's run sessions in Garmin Connect as structured workouts."""
+    from . import garmin as gm
+    from .push import describe, plan_workouts, push_workouts
+
+    cfg = load_config()
+    store = open_store()
+    first = _parse_date(start) or date.today()
+    last = first + timedelta(days=weeks * 7 - 1)
+    workouts = plan_workouts(store, cfg, source, first, last)
+    if not workouts:
+        console.print(f"No run sessions from {source} between {first} and {last}.")
+        raise typer.Exit(0)
+    t = Table(title=f"{'Would push' if dry_run else 'Pushing'} {len(workouts)} workouts, {first} to {last}")
+    for col in ("date", "name", "km", "steps"):
+        t.add_column(col)
+    for w in workouts:
+        from .push import steps_distance
+
+        t.add_row(w["date"], w["name"], f"{steps_distance(w['steps']) / 1000:.1f}", describe(w["steps"]))
+    console.print(t)
+    if dry_run:
+        store.close()
+        return
+    try:
+        g = gm.login_with_tokens(TOKEN_DIR)
+    except gm.GarminAuthRequired as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    created, skipped = push_workouts(g, store, workouts, replace=replace, log=log)
+    if created and send:
+        try:
+            g.send_scheduled_workouts_to_devices()
+        except Exception as e:  # noqa: BLE001
+            console.print(f"  sync request failed ({e}); the watch picks them up on its next Garmin Connect sync anyway")
+    store.log_sync("plan_push", f"{first}..{last} created={created} skipped={skipped}")
+    console.print(f"[green]Done.[/green] created {created}, skipped {skipped} already pushed (use --replace to redo them).")
+    store.close()
+
+
+@plan_app.command("unpush")
+def plan_unpush(
+    start: str = typer.Option(None, "--from", help="First date YYYY-MM-DD (default: everything pushed)"),
+    end: str = typer.Option(None, "--to", help="Last date YYYY-MM-DD"),
+) -> None:
+    """Remove workouts that fastr scheduled in Garmin Connect."""
+    from . import garmin as gm
+    from .push import unpush
+
+    store = open_store()
+    try:
+        g = gm.login_with_tokens(TOKEN_DIR)
+    except gm.GarminAuthRequired as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    n = unpush(g, store, _parse_date(start), _parse_date(end), log=log)
+    console.print(f"[green]Removed {n} workouts.[/green]")
+    store.close()
+
+
 @plan_app.command("show")
 def plan_show(
     source: str = typer.Option("claude_plan", "--source"),
