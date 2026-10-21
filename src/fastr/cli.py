@@ -269,6 +269,38 @@ def plan_unpush(
     store.close()
 
 
+@plan_app.command("move")
+def plan_move(
+    from_day: str = typer.Argument(..., help="Date the workout was scheduled on, YYYY-MM-DD"),
+    to_day: str = typer.Argument(..., help="Date to move it to, YYYY-MM-DD"),
+    send: bool = typer.Option(True, "--send/--no-send", help="Ask Garmin to sync scheduled workouts to the watch"),
+) -> None:
+    """Move a pushed workout to another day, e.g. a missed session you do a day later."""
+    from . import garmin as gm
+    from .push import move
+
+    try:
+        src, dst = date.fromisoformat(from_day), date.fromisoformat(to_day)
+    except ValueError:
+        console.print("[red]Dates must be YYYY-MM-DD.[/red]")
+        raise typer.Exit(2)
+    store = open_store()
+    try:
+        g = gm.login_with_tokens(TOKEN_DIR)
+    except gm.GarminAuthRequired as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    n = move(g, store, src, dst, log=log)
+    if n and send:
+        try:
+            g.send_scheduled_workouts_to_devices()
+        except Exception as e:  # noqa: BLE001
+            console.print(f"  sync request failed ({e}); the watch picks it up on its next Garmin Connect sync anyway")
+    store.log_sync("plan_move", f"{src} -> {dst} moved={n}")
+    console.print(f"[green]Moved {n} workouts[/green] from {src} to {dst}." if n else f"Nothing pushed on {src}.")
+    store.close()
+
+
 @plan_app.command("show")
 def plan_show(
     source: str = typer.Option("claude_plan", "--source"),

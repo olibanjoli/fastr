@@ -68,3 +68,35 @@ def test_garmin_json_shape():
     orders = [top[0]["stepOrder"], grp["stepOrder"], grp["workoutSteps"][0]["stepOrder"], grp["workoutSteps"][1]["stepOrder"], top[2]["stepOrder"]]
     assert orders == [1, 2, 3, 4, 5]
     assert "3x(interval 1.5 km @ 5:05-5:15 | recovery 90 s)" in describe(steps)
+
+
+class FakeGarmin:
+    def __init__(self):
+        self.calls: list[tuple] = []
+
+    def unschedule_workout(self, schedule_id):
+        self.calls.append(("unschedule", schedule_id))
+
+    def schedule_workout(self, workout_id, day):
+        self.calls.append(("schedule", workout_id, day))
+        return {"workoutScheduleId": 900 + len(self.calls)}
+
+
+def test_move_reschedules_pushed_workout(tmp_path):
+    from datetime import date
+
+    from fastr.push import move
+    from fastr.store import Store
+
+    store = Store(tmp_path / "t.db", raw_dir=tmp_path / "raw")
+    store.record_push("p:1:tue", "2026-10-20", 111, 501, "W01 Tue Easy")
+    store.record_push("p:1:thu", "2026-10-22", 112, 502, "W01 Thu Easy")
+    g = FakeGarmin()
+    n = move(g, store, date(2026, 10, 20), date(2026, 10, 21), log=lambda s: None)
+    assert n == 1
+    assert g.calls == [("unschedule", 501), ("schedule", 111, "2026-10-21")]
+    rows = {r["uid"]: dict(r) for r in store.pushed()}
+    assert rows["p:1:tue"]["date"] == "2026-10-21" and rows["p:1:tue"]["schedule_id"] == 902
+    assert rows["p:1:thu"]["date"] == "2026-10-22"
+    assert move(g, store, date(2026, 10, 20), date(2026, 10, 21), log=lambda s: None) == 0
+    store.close()

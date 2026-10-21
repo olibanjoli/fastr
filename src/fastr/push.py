@@ -357,3 +357,22 @@ def unpush(g: Any, store: Store, start: date | None, end: date | None, log: Call
         n += 1
         log(f"  removed {row['date']} {row['name']}")
     return n
+
+
+def move(g: Any, store: Store, from_day: date, to_day: date, log: Callable[[str], None] = print) -> int:
+    """Reschedule the workouts fastr pushed for one day onto another day (a missed session done later)."""
+    n = 0
+    for row in store.pushed(since=from_day.isoformat(), until=from_day.isoformat()):
+        if not row["workout_id"]:
+            continue
+        if row["schedule_id"]:
+            try:
+                g.unschedule_workout(row["schedule_id"])
+            except Exception as e:  # noqa: BLE001
+                log(f"  could not unschedule {row['name']} ({e})")
+        sched = g.schedule_workout(row["workout_id"], to_day.isoformat())
+        schedule_id = sched.get("workoutScheduleId") if isinstance(sched, dict) else None
+        store.record_push(row["uid"], to_day.isoformat(), row["workout_id"], schedule_id, row["name"])
+        n += 1
+        log(f"  {row['name']}: {from_day} -> {to_day} (schedule {schedule_id})")
+    return n

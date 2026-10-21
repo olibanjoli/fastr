@@ -50,6 +50,7 @@ start, `--no-metrics` to skip the daily metrics.
 | `fastr decoupling [--weeks 8] [--min-minutes 45]` | pace-to-heart-rate drift per steady run: was the easy run actually easy? |
 | `fastr plan import plans/my-plan.csv` | load a hand-written CSV plan (see `plans/README.md`) as a plan source |
 | `fastr plan push [--weeks 3] [--dry-run] [--replace]` | schedule the plan's runs in Garmin Connect as structured workouts (heart-rate caps and pace zones from `[paces]` in fastr.toml), so the watch guides each session |
+| `fastr plan move FROM TO` | move a pushed workout to another day (a missed session you do later) |
 | `fastr plan unpush [--from DATE] [--to DATE]` | remove workouts fastr scheduled |
 | `fastr status` | what is in the store, last syncs, goals |
 | `fastr inspect snapshot|range|activity|laps|planned|daily [key]` | look at raw shapes to refine extractors |
