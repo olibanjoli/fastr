@@ -1,7 +1,9 @@
 # fastr
 
-Pulls your Garmin history and your Runna plan into one local store, then builds a
-report that answers: *how is training going, and am I on course for my goals?*
+Pulls your Garmin history and your training plan (a Runna calendar feed, or your own
+CSV) into one local store, then builds a report that answers: *how is training going,
+and am I on course for my goals?* It is built to be used with Claude Code as the coach:
+`CLAUDE.md` tells Claude how to run the loop, and the section below tells you.
 
 Everything stays on your machine under `data/` (git-ignored): Garmin session
 tokens, a SQLite database, the raw JSON of every API answer, and the reports.
@@ -11,12 +13,14 @@ tokens, a SQLite database, the raw JSON of every API answer, and the reports.
 | Source | Route | What you get |
 |---|---|---|
 | Garmin Connect | unofficial `garminconnect` library with a saved session | every activity (all sports), per-lap data for runs, VO2max, lactate threshold, training status and load, HRV, readiness, resting HR, sleep, race predictions, personal records, and the next two weeks of structured workouts Runna pushed to the Garmin calendar |
-| Runna | the plan's iCalendar feed (Runna app: Connected Apps & Devices -> Calendars -> Other Calendar -> Connect, copy the URL) | every planned session of the active plan, as far ahead as the plan goes, with Runna's own description text |
+| Runna (optional) | the plan's iCalendar feed (Runna app: Connected Apps & Devices -> Calendars -> Other Calendar -> Connect, copy the URL) | every planned session of the active plan, as far ahead as the plan goes, with Runna's own description text |
+| CSV plan (optional) | `fastr plan import plans/my-plan.csv`, format in `plans/README.md` | your own plan, one row per week; can be pushed to the watch as structured workouts |
 
 Runna has no public API and its web version does not show plans, so the calendar
 feed is the only way to see the whole plan. Garmin only ever holds the next two
 weeks of Runna workouts, but those carry exact step targets (paces, durations), so
-both are stored.
+both are stored. Without Runna, a CSV plan is the complete alternative: the report
+scores against it and `fastr plan push` puts it on the watch.
 
 ## Setup
 
@@ -31,20 +35,21 @@ URL under `[runna]`, optionally your Garmin email and a `history_start` date.
 ```powershell
 uv run fastr auth       # one-time Garmin login (asks for password and MFA code)
 uv run fastr sync       # Garmin history; first run pulls 18 months and takes a while
-uv run fastr runna      # Runna plan from the calendar feed
+uv run fastr runna      # Runna plan from the calendar feed (skip without Runna)
+uv run fastr plan import plans/my-plan.csv   # or your own plan, see plans/README.md
 uv run fastr report     # data/reports/latest.md + latest.json
 ```
 
 Later runs of `fastr sync` are incremental (from a week before the latest stored
 activity). Use `--full` to re-pull everything, `--since 2026-01-01` for a custom
-start, `--no-metrics` to skip the daily metrics.
+start, `--recent-days 7` to limit the per-day metrics, `--no-metrics` to skip them.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
 | `fastr auth` | log in to Garmin once; tokens go to `data/garmin_tokens/` |
-| `fastr sync` | activities, laps, daily metrics, snapshots, scheduled workouts |
+| `fastr sync [--full] [--since DATE] [--recent-days N] [--no-metrics]` | activities, laps, daily metrics, snapshots, scheduled workouts |
 | `fastr runna [--url ...] [--file plan.ics] [--show 20]` | import the Runna plan |
 | `fastr report [--weeks 26] [--plan-weeks 25] [--plan-source runna_ical\|claude_plan] [--print]` | build the markdown and JSON report |
 | `fastr decoupling [--weeks 8] [--min-minutes 45]` | pace-to-heart-rate drift per steady run: was the easy run actually easy? |
@@ -65,7 +70,39 @@ heart-rate ceiling after 10 km and pace targets for any marathon- or half-pace b
 Each workout is scheduled on its date, and Garmin Connect sends it to the watch at the
 next sync. Run with `--dry-run` first to see the exact steps. After a race changes your
 zones, edit `[paces]` and run `fastr plan push --replace`. The push covers three weeks
-by default, so re-run it weekly.
+by default, so re-run it weekly; it skips what is already there. When a session slips
+to another day, `fastr plan move 2026-03-03 2026-03-04` reschedules it on the watch.
+Strength and rest days are never pushed.
+
+## Using it as a coach with Claude Code
+
+Open the repo in Claude Code. `CLAUDE.md` gives Claude the loop and the privacy rules;
+you supply the context Garmin cannot see (how a run felt, a late night, an injury).
+A weekly check-in looks like this:
+
+```powershell
+uv run fastr sync --recent-days 7
+uv run fastr report
+uv run fastr decoupling
+uv run fastr plan push
+```
+
+Then ask Claude to read `data/reports/latest.md` and tell you where you stand. The
+report scores your weeks against the goals in `fastr.toml`, flags volume jumps and
+poor adherence, and the decoupling table says whether the easy runs were easy. Things
+that have worked:
+
+- Set goals as a ladder of test races (a 10k, a half, the marathon) with dates, so each
+  report has a near-term verdict and not only the far one.
+- Let Claude write the plan as a CSV in `plans/` (git-ignored), import it, set
+  `[plan] source = "claude_plan"` in `fastr.toml`, and push it to the watch. Easy runs
+  get a heart-rate cap, quality sessions get pace targets.
+- After each test race, have Claude reset `[paces]` and push with `--replace`.
+- Missed a session? Tell Claude what happened; it moves the workout with `plan move`
+  rather than squeezing it into another day. Adherence is scored per week, so a
+  reshuffle inside the week costs nothing.
+- Tell Claude about nights out, illness, travel. HRV and readiness dips get blamed on
+  training otherwise.
 
 ## What the report contains
 
@@ -89,6 +126,7 @@ by default, so re-run it weekly.
 ## Layout
 
 ```
+CLAUDE.md       how Claude Code should run the loop and what stays private
 src/fastr/
   cli.py        commands
   config.py     fastr.toml, goals, formatting helpers
